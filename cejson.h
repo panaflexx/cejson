@@ -750,8 +750,6 @@ static void json_dump_debug(JsonParser* p, const JsonNode* node,
 {
     if (!node) { fputs("null", out); return; }
 
-    const char* src = p->buffer + node->offset;
-
     switch (node->type) {
         case JSON_NULL:   fputs("null", out); break;
         case JSON_TRUE:   fputs("true", out); break;
