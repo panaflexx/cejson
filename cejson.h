@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include "stringbuf.h"
 
 /* Debug levels */
 typedef enum {
@@ -39,6 +40,10 @@ typedef enum {
 #ifndef likely
 #define likely(x)   __builtin_expect(!!(x), 1)
 #define unlikely(x) __builtin_expect(!!(x), 0)
+#endif
+
+#ifndef MAX
+#define MAX(a,b) ((a)<(b)?(b):(a))
 #endif
 
 typedef enum {
@@ -88,7 +93,7 @@ typedef enum {
 
 typedef struct {
     const char* buffer;
-    uint32_t    buf_len;
+    uint64_t    buf_len;
     uint64_t    consumed;
 
     JsonNode*   nodes;
@@ -102,7 +107,7 @@ typedef struct {
     uint8_t*    expecting_key;
 
     int         error;
-    uint32_t    error_pos;
+    uint64_t    error_pos;
 
     ParseState  state;
     uint64_t    pending_offset;
@@ -135,7 +140,6 @@ static const char * const JsonErrorStr[] = {
     "JSON_ERR_NONE",
     "JSON_ERR_UNEXPECTED",
     "JSON_ERR_INCOMPLETE",
-    "JSON_ERR_INCOMPLETE",
     "JSON_ERR_CAPACITY"
 };
 
@@ -165,13 +169,20 @@ static inline void json_init(JsonParser* p,
 	//memset(nodes, 0, sizeof(JsonNode) * nodes_cap);
 }
 
-static inline void skip_ws(const char* data, uint32_t len, uint64_t* pos)
+static inline void skip_ws(const char* data, uint64_t len, uint64_t* pos)
 {
     while (*pos < len) {
         char c = data[*pos];
         if (c != ' ' && c != '\t' && c != '\n' && c != '\r') break;
         (*pos)++;
     }
+}
+
+static inline void boop() { printf("CAPACITY BOOP\n"); }
+static inline void poop(JsonParser *p) 
+{
+	printf("UNEXPECTED POOP, state=%s pos=%llu\n",ParseStateStr[p->state], p->error_pos); 
+	printf("%.40s\n                    ^\n", MAX(0, p->buffer + p->error_pos - 20));
 }
 
 /* Ultra-tight, fully streaming-safe json_feed – now correctly handles \uXXXX and literals split across chunks */
@@ -198,6 +209,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
             if (unlikely(c != ':')) {
                 p->error = JSON_ERR_UNEXPECTED;
                 p->error_pos = p->consumed + pos;
+				poop(p);
                 return false;
             }
             p->expecting_key[p->stack_len - 1] = 0;
@@ -222,6 +234,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
             if (unlikely(c != expected[p->literal_matched])) {
                 p->error = JSON_ERR_UNEXPECTED;
                 p->error_pos = p->consumed + pos;
+				poop(p);
                 return false;
             }
 
@@ -231,7 +244,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
             if (p->literal_matched == total) {
                 JsonNode node = { .type = target, .offset = p->pending_offset, .len = total };
                 uint64_t idx = p->nodes_len++;
-                if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; return false; }
+                if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; }
                 p->nodes[idx] = node;
 
                 if (p->stack_len && p->nodes[p->stack[p->stack_len - 1]].type == JSON_OBJECT &&
@@ -255,6 +268,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
                                (uc >= 'a' && uc <= 'f')))) {
                     p->error = JSON_ERR_UNEXPECTED;
                     p->error_pos = p->consumed + pos;
+					poop(p);
                     return false;
                 }
                 p->uni_digits++;
@@ -277,6 +291,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
                     default:
                         p->error = JSON_ERR_UNEXPECTED;
                         p->error_pos = p->consumed + pos;
+						poop(p);
                         return false;
                 }
 
@@ -300,7 +315,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 #endif
 
                 uint64_t idx = p->nodes_len++;
-                if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; return false; }
+                if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; }
                 p->nodes[idx] = n;
 
                 if (p->stack_len && !p->is_key_string) p->nodes[p->stack[p->stack_len - 1]].children++;
@@ -341,6 +356,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
                          p->num_ends_with_dot || p->num_ends_with_e || p->num_ends_with_esgn)) {
                 p->error = JSON_ERR_UNEXPECTED;
                 p->error_pos = p->consumed + pos;
+				poop(p);
                 return false;
             }
 
@@ -350,7 +366,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
                 .len = p->pending_len
             };
             uint64_t idx = p->nodes_len++;
-            if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; return false; }
+            if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; }
             p->nodes[idx] = node;
 
             if (p->stack_len && p->nodes[p->stack[p->stack_len - 1]].type == JSON_OBJECT &&
@@ -377,9 +393,10 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 					if(p->pending_value) {
 						p->error = JSON_ERR_UNEXPECTED;
 						p->error_pos = p->consumed + pos;
+						poop(p);
 						return false;  // missing value after key!
 					}
-					uint32_t open_idx = p->stack[--p->stack_len];
+					uint64_t open_idx = p->stack[--p->stack_len];
 					p->nodes[open_idx].len = (uint32_t)(p->consumed + pos - p->nodes[open_idx].offset + 1);
 
 					uint64_t content_nodes = p->nodes_len - (open_idx + 1);
@@ -403,13 +420,14 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
                 }
                 p->error = JSON_ERR_UNEXPECTED;
                 p->error_pos = p->consumed + pos;
+				poop(p);
                 return false;
             }
 
             bool expecting_key = p->stack_len && p->expecting_key[p->stack_len - 1];
 
             if (expecting_key) {
-                if (unlikely(c != '"')) { p->error = JSON_ERR_UNEXPECTED; p->error_pos = p->consumed + pos; return false; }
+                if (unlikely(c != '"')) { p->error = JSON_ERR_UNEXPECTED; p->error_pos = p->consumed + pos; poop(p); return false; }
                 p->state = PS_IN_STRING;
                 p->is_key_string = true;
                 p->pending_hash = 0;
@@ -427,12 +445,14 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 				uint64_t idx = p->nodes_len++;
 				if (unlikely(idx >= p->nodes_cap)) {
 					p->error = JSON_ERR_CAPACITY;
+					boop();
 					return false; 
 				}
 				p->nodes[idx] = n;
 				p->expecting_key[p->stack_len] = 1;
 				if (unlikely(p->stack_len >= p->stack_cap)) {
 					p->error = JSON_ERR_CAPACITY;
+					boop();
 					return false;
 				}
 				p->stack[p->stack_len++] = idx;
@@ -440,7 +460,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 				pos++;
 				continue;
 			}
-            if (c == '[') { JsonNode n = { .type = JSON_ARRAY, .offset = p->consumed + pos }; uint64_t idx = p->nodes_len++; if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; return false; } p->nodes[idx] = n; p->expecting_key[p->stack_len] = 0; if (unlikely(p->stack_len >= p->stack_cap)) { p->error = JSON_ERR_CAPACITY; return false; } p->stack[p->stack_len++] = idx; if (p->stack_len > 1) p->nodes[p->stack[p->stack_len - 2]].children++; pos++; continue; }
+            if (c == '[') { JsonNode n = { .type = JSON_ARRAY, .offset = p->consumed + pos }; uint64_t idx = p->nodes_len++; if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; } p->nodes[idx] = n; p->expecting_key[p->stack_len] = 0; if (unlikely(p->stack_len >= p->stack_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; } p->stack[p->stack_len++] = idx; if (p->stack_len > 1) p->nodes[p->stack[p->stack_len - 2]].children++; pos++; continue; }
             if (c == '-' || (c >= '0' && c <= '9')) { p->state = PS_IN_NUMBER; p->pending_offset = p->consumed + pos; p->pending_len = 1; p->num_has_digit = (c >= '0' && c <= '9'); p->num_is_negative = (c == '-'); p->num_has_dot = p->num_has_exp = false; pos++; continue; }
             if (c == 't') { p->pending_literal = LIT_TRUE;  p->literal_matched = 1; p->pending_offset = p->consumed + pos; p->state = PS_IN_LITERAL; pos++; continue; }
             if (c == 'f') { p->pending_literal = LIT_FALSE; p->literal_matched = 1; p->pending_offset = p->consumed + pos; p->state = PS_IN_LITERAL; pos++; continue; }
@@ -448,6 +468,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 
             p->error = JSON_ERR_UNEXPECTED;
             p->error_pos = p->consumed + pos;
+			poop(p);
             return false;
         }
     }
@@ -472,7 +493,7 @@ static inline bool json_finish(JsonParser* p)
         JsonNode node = { .type = (p->num_has_dot || p->num_has_exp) ? JSON_NUMBER_FLOAT : JSON_NUMBER_INT,
                           .offset = p->pending_offset, .len = p->pending_len };
         uint64_t idx = p->nodes_len++;
-        if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; return false; }
+        if (unlikely(idx >= p->nodes_cap)) { p->error = JSON_ERR_CAPACITY; boop(); return false; }
         p->nodes[idx] = node;
     }
     else if (unlikely(p->state == PS_IN_STRING || p->state == PS_IN_LITERAL)) {
@@ -664,6 +685,31 @@ static inline void json_dump_escape(FILE* out, const char* s, size_t len)
     fputc('"', out);
 }
 
+static inline void json_dump_escape_buf(StringBuf* sb, const char* s, size_t len)
+{
+	stringbuf_append_char(sb, '"');
+    for (size_t i = 0; i < len; ++i) {
+        unsigned char c = (unsigned char)s[i];
+        switch (c) {
+            case '"':  stringbuf_append_str(sb, "\\\""); break;
+            case '\\': stringbuf_append_str(sb, "\\\\"); break;
+            case '\b': stringbuf_append_str(sb, "\\b"); break;
+            case '\f': stringbuf_append_str(sb, "\\f"); break;
+            case '\n': stringbuf_append_str(sb, "\\n"); break;
+            case '\r': stringbuf_append_str(sb, "\\r"); break;
+            case '\t': stringbuf_append_str(sb, "\\t"); break;
+            default:
+                if (c < 0x20) {
+                    stringbuf_appendf(sb, "\\u%04x", c);
+                } else {
+					stringbuf_append_char(sb, c);
+                }
+                break;
+        }
+    }
+	stringbuf_append_char(sb, '"');
+}
+
 static void json_dump_node(JsonParser* p, const JsonNode* node,
                            FILE* out, int indent, bool pretty)
 {
@@ -745,7 +791,99 @@ static void json_dump_node(JsonParser* p, const JsonNode* node,
     }
 }
 
-static void json_dump_debug(JsonParser* p, const JsonNode* node,
+static ssize_t json_dump_node_buf(JsonParser* p, const JsonNode* node,
+                           StringBuf *sb, int indent, bool pretty)
+{
+    if (!node) { stringbuf_append_str(sb, "null"); return sb->size; }
+
+    const char* src = node->strval ? node->strval : p->buffer + node->offset;
+
+	if(node->offset > p->buf_len) {
+		printf("SOURCE IS PAST LEN\n");
+		return -1;
+	}
+    switch (node->type) {
+        case JSON_NULL:   stringbuf_append_str(sb, "null"); break;
+        case JSON_TRUE:   stringbuf_append_str(sb, "true"); break;
+        case JSON_FALSE:  stringbuf_append_str(sb, "false"); break;
+
+        case JSON_NUMBER_INT:
+        case JSON_NUMBER_FLOAT:
+			stringbuf_append(sb, src, node->len);
+            break;
+
+        case JSON_STRING:
+			stringbuf_append_char(sb, '\"');
+			stringbuf_append(sb, src, node->len);
+			stringbuf_append_char(sb, '\"');
+            //json_dump_escape_buf(sb, src, node->len);
+            break;
+
+        case JSON_ARRAY: {
+            if (node->children == 0) { stringbuf_append_str(sb, "[]"); return sb->size; }
+
+			stringbuf_append_char(sb, '[');
+            if (pretty) stringbuf_append_char(sb, '\n');
+
+            JsonNode* child = json_first_child(p, node);
+            for (uint32_t i = 0; i < node->children; ++i) {
+                if (pretty) for (int k = 0; k < indent + 2; ++k) stringbuf_append_char(sb, ' ');
+                json_dump_node_buf(p, child, sb, indent + 2, pretty);
+                child = json_next_sibling(p, child);
+                if (i + 1 < node->children) {
+					stringbuf_append_char(sb, ',');
+					if (pretty) stringbuf_append_char(sb, '\n');
+                }
+            }
+            if (pretty) {
+				stringbuf_append_char(sb, '\n');
+                for (int k = 0; k < indent; ++k) stringbuf_append_char(sb, ' ');
+            }
+			stringbuf_append_char(sb, ']');
+            break;
+        }
+
+       case JSON_OBJECT: {
+			if (node->children == 0) { stringbuf_append_str(sb, "{}"); break; }
+
+			stringbuf_append_char(sb, '{');
+			if (pretty) stringbuf_append_char(sb, '\n');
+
+			JsonNode* key_node = json_first_child(p, node);
+			for (uint32_t i = 0; i < node->children; ++i) {
+				JsonNode* value_node = json_next_sibling(p, key_node);
+
+				if (pretty) for (int k = 0; k < indent + 2; ++k) stringbuf_append_char(sb, ' ');
+
+				stringbuf_append_char(sb, '\"');
+				if(key_node->strval)
+					stringbuf_append(sb, key_node->strval, key_node->len);
+				else
+					stringbuf_append(sb, p->buffer + key_node->offset, key_node->len);
+				stringbuf_append_char(sb, '\"');
+
+				if (pretty) stringbuf_append_str(sb, ": "); else stringbuf_append_char(sb, ':');
+				json_dump_node_buf(p, value_node, sb, indent + 2, pretty);
+
+				if (i + 1 < node->children) {
+					stringbuf_append_char(sb, ',');
+					if (pretty) stringbuf_append_char(sb, '\n');
+				}
+
+				key_node = json_next_sibling(p, value_node);   // now skips nested objects correctly
+			}
+			if (pretty) {
+				stringbuf_append_char(sb, '\n');
+				for (int k = 0; k < indent; ++k) stringbuf_append_char(sb, ' ');
+			}
+			stringbuf_append_char(sb, '}');
+			break;
+		} 
+    }
+	return sb->size;
+}
+
+static inline void json_dump_debug(JsonParser* p, const JsonNode* node,
                            FILE* out, int indent, bool pretty)
 {
     if (!node) { fputs("null", out); return; }
@@ -837,7 +975,10 @@ static inline void json_dump(JsonParser* p, FILE* out, bool pretty)
 #endif
 }
 
-static inline void json_print(JsonParser* p, bool pretty) { json_dump(p, stdout, pretty); }
+static inline void json_print(JsonParser* p, bool pretty)
+{ json_dump(p, stdout, pretty); }
+static inline ssize_t json_serialize(JsonParser* p, bool pretty, StringBuf *sb)
+{ return json_dump_node_buf(p, &p->nodes[0], sb, 0, pretty); }
 static inline void json_print_pretty(JsonParser* p)  { json_print(p, true); }
 static inline void json_print_compact(JsonParser* p) { json_print(p, false); }
 

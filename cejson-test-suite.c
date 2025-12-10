@@ -223,7 +223,7 @@ static void test_real_world_files()
 
         JsonParser p;
         bool ok = parse_full(buf, &p);
-        printf("File %s: %s (%lu nodes)\n",
+        printf("File %s: %s (%llu nodes)\n",
                files[i], ok ? "OK" : "FAIL", p.nodes_len);
         ASSERT(ok, "ok");
         free(buf);
