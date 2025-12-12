@@ -179,10 +179,20 @@ static inline void skip_ws(const char* data, uint64_t len, uint64_t* pos)
 }
 
 static inline void boop() { printf("CAPACITY BOOP\n"); }
-static inline void poop(JsonParser *p) 
+static inline void poop(JsonParser *p)
 {
-	printf("UNEXPECTED POOP, state=%s pos=%llu\n",ParseStateStr[p->state], p->error_pos); 
-	printf("%.40s\n                    ^\n", MAX(0, p->buffer + p->error_pos - 20));
+    printf("UNEXPECTED POOP, state=%s pos=%llu\n", ParseStateStr[p->state], p->error_pos);
+
+    // Safely calculate snippet start and length
+    uint64_t start = (p->error_pos > 20) ? p->error_pos - 20 : 0;
+    uint64_t snippet_len = (p->buf_len - start > 40) ? 40 : p->buf_len - start;
+
+    // Print the snippet
+    printf("%.*s\n", (int)snippet_len, p->buffer + start);
+
+    // Print caret ^ at the error position (relative to start)
+    for (uint64_t i = 0; i < p->error_pos - start; ++i) putchar(' ');
+    printf("^\n");
 }
 
 /* Ultra-tight, fully streaming-safe json_feed – now correctly handles \uXXXX and literals split across chunks */

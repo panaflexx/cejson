@@ -173,6 +173,7 @@ static void test_error_detection()
     ASSERT(!parse_full("{\"a\":}", &p), "Should fail: missing value");     // missing value
     //ASSERT(!parse_full("[1,]", &p), "Should fail: Trailing comma");        // trailing comma
     ASSERT(!parse_full("trux", &p), "Should fail: Bad literal");        // bad literal
+    ASSERT(!parse_full("\"key\":", &p), "Should fail: Bad literal");        // bad literal
     ASSERT(!parse_full("\"\\q\"", &p), "Should fail: Invalid escape");     // invalid escape
     ASSERT(!parse_full("1.", &p), "Should fail: incomplete float");          // dot without digit
     ASSERT(!parse_full("1e", &p), "Should fail: incomplete e float");          // e without digit
