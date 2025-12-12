@@ -95,6 +95,7 @@ typedef struct {
     const char* buffer;
     uint64_t    buf_len;
     uint64_t    consumed;
+	uint32_t	line;
 
     JsonNode*   nodes;
     uint64_t    nodes_cap;
@@ -152,7 +153,7 @@ static inline void json_init(JsonParser* p,
 {
 	memset(p, 0, sizeof(JsonParser));
     p->buffer = NULL;
-    p->buf_len = p->consumed = 0;
+    p->buf_len = p->consumed = p->line = 0;
     p->nodes = nodes; p->nodes_cap = nodes_cap; p->nodes_len = 0;
     p->stack = stack; p->stack_cap = stack_cap; p->stack_len = 0;
     p->expecting_key = expecting_key;
@@ -169,10 +170,11 @@ static inline void json_init(JsonParser* p,
 	//memset(nodes, 0, sizeof(JsonNode) * nodes_cap);
 }
 
-static inline void skip_ws(const char* data, uint64_t len, uint64_t* pos)
+static inline void skip_ws(const char* data, uint64_t len, uint64_t* pos, uint32_t* line)
 {
     while (*pos < len) {
         char c = data[*pos];
+		if (c == '\n' || c == '\r') (*line)++;
         if (c != ' ' && c != '\t' && c != '\n' && c != '\r') break;
         (*pos)++;
     }
@@ -181,8 +183,7 @@ static inline void skip_ws(const char* data, uint64_t len, uint64_t* pos)
 static inline void boop() { printf("CAPACITY BOOP\n"); }
 static inline void poop(JsonParser *p)
 {
-#ifdef DEBUG
-    printf("UNEXPECTED POOP, state=%s pos=%llu\n", ParseStateStr[p->state], p->error_pos);
+    printf("UNEXPECTED POOP, state=%s line=%u pos=%llu\n", ParseStateStr[p->state], p->line + 1, p->error_pos);
 
     // Safely calculate snippet start and length
     uint64_t start = (p->error_pos > 20) ? p->error_pos - 20 : 0;
@@ -194,7 +195,6 @@ static inline void poop(JsonParser *p)
     // Print caret ^ at the error position (relative to start)
     for (uint64_t i = 0; i < p->error_pos - start; ++i) putchar(' ');
     printf("^\n");
-#endif // DEBUG
 }
 
 /* Ultra-tight, fully streaming-safe json_feed – now correctly handles \uXXXX and literals split across chunks */
@@ -209,7 +209,7 @@ static inline bool json_feed(JsonParser* p, const char* data, uint64_t len)
 
     while (pos < len) {
 		if(p->state == PS_NORMAL || p->state == PS_AFTER_VALUE)
-			skip_ws(data, len, &pos);
+			skip_ws(data, len, &pos, &p->line);
 
         if (unlikely(pos >= len)) break;
 
