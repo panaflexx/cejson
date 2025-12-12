@@ -155,9 +155,11 @@ static void fuzz_one(const char *json, size_t len)
             return;
         } else {
 			printf("SUCCESS %s\n", p.buffer);
-			printf("====\n");
+#ifdef DEBUG
+			printf("====DEBUG====\n");
 			json_print_pretty(&p);
-			printf("\n====\n");
+			printf("\n====DEBUG====\n");
+#endif //DEBUG
 		}
 
         off += chunk;
