@@ -7,13 +7,13 @@ project(cejson LANGUAGES C)
 # ------------------------------------------------------------------
 add_compile_options(
     -Wall -Wextra -Wpedantic
-    -g3 #-O3
-    -fsanitize=address,undefined
-    -fno-omit-frame-pointer
+    -g3 -O3
+    #-fsanitize=address,undefined
+    #-fno-omit-frame-pointer
 )
 
 add_link_options(
-    -fsanitize=address,undefined
+    #-fsanitize=address,undefined
 )
 
 # ------------------------------------------------------------------
