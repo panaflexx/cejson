@@ -13,7 +13,9 @@ Parsed test3.json to 33 nodes (4096 allocated) | 106.49 MB/s (0.000 sec) | alloc
 
 
 **$ ./bin/cejson-files --help**
+
 Usage: ./bin/cejson-files [-d] [-nw] [-v] <file1.json> [file2.json ...]
+
  -d  dump pretty-printed JSON
 
  -nw network emulation (8–4096 byte chunks)
