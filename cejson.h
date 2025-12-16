@@ -971,7 +971,7 @@ static inline void json_dump_debug(JsonParser* p, const JsonNode* node,
     }
 }
 
-/* Public API – dump the whole parsed document */
+/* Public API – dump the whole parsed document to a FILE stream */
 static inline void json_dump(JsonParser* p, FILE* out, bool pretty)
 {
     if (!p || p->nodes_len == 0) {
@@ -989,6 +989,7 @@ static inline void json_dump(JsonParser* p, FILE* out, bool pretty)
 
 static inline void json_print(JsonParser* p, bool pretty)
 { json_dump(p, stdout, pretty); }
+/* Public API – dump the whole parsed document to a buffer */
 static inline ssize_t json_serialize(JsonParser* p, bool pretty, StringBuf *sb)
 { return json_dump_node_buf(p, &p->nodes[0], sb, 0, pretty); }
 static inline void json_print_pretty(JsonParser* p)  { json_print(p, true); }
