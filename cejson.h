@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <inttypes.h>
 #include <stdio.h>
+#define STRINGBUF_IMPLEMENTATION
 #include "stringbuf.h"
 
 /* Debug levels */

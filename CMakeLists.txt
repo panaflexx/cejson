@@ -6,10 +6,10 @@ project(cejson LANGUAGES C)
 # Global compiler flags (same as your manual command)
 # ------------------------------------------------------------------
 add_compile_options(
-    -Wall -Wextra -Wpedantic
+    -Wall -Wextra -Wpedantic -Wno-unused-parameter
     -g3 -O3
     -fsanitize=address,undefined
-    #-fno-omit-frame-pointer
+    -fno-omit-frame-pointer
 )
 
 add_link_options(
@@ -34,6 +34,12 @@ set_target_properties(cejson-test-suite PROPERTIES
 # 2. Fuzzer (with full sanitizers – perfect for development & hunting bugs)
 add_executable(cejson-fuzz cejson-fuzz.c)
 set_target_properties(cejson-fuzz PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin
+)
+
+# StringBuf test (with full sanitizers – perfect for development & hunting bugs)
+add_executable(stringbuf-test stringbuf-test.c)
+set_target_properties(stringbuf-test PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/bin
 )
 
